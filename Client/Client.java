@@ -4,35 +4,31 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CountDownLatch;
 
-//TIP To <b>Run</b> code, press <shortcut actionId="Run"/> or
-// click the <icon src="AllIcons.Actions.Execute"/> icon in the gutter.
 public class Client {
     private static final Set<Integer> REQUEST_NUMBER = Set.of(1, 5, 10, 15, 20, 25);
     private static final String[] AVAILABLE_REQUESTS = {"DATETIME","UPTIME", "MEMORY", "NETSTAT", "USERS", "PROCESSES", "EXIT"};
-    private static final Set<Integer> INPUT_NUMBER = Set.of(1, 2, 3, 4, 5, 6, 7, 8);
-    private static final DateTimeFormatter = DateTimeFormatter.ofPattern("EEE MMM d hh:mm:ss a z yyyy", Locale.US);
+    private static final Set<Integer> INPUT_NUMBER = Set.of(1, 2, 3, 4, 5, 6, 7);
+    private static final DateTimeFormatter STAMP = DateTimeFormatter.ofPattern("EEE MMM d hh:mm:ss a z yyyy", Locale.US);
 
     public static void main(String[] args) {
         Scanner sc = new Scanner(System.in);
 
-        System.out.println("Please enter Network Address:\n");
+        System.out.println("\nPlease enter Network Address:");
         String networkAddress = sc.nextLine();
 
-        System.out.println("Please enter Port Number:\n");
-        boolean flag = true;
-        int portNumber = 0;
-        while (flag) {
+        System.out.println("\nPlease enter Port Number:");
+        int portNumber;
+        while (true) {
             portNumber = sc.nextInt();
-            if (portNumber > 1025 || portNumber < 4998) {
-                flag = false;
+            if (portNumber >= 1025 && portNumber <= 4998) {
                 break;
             }
-            System.out.println("Enter a port number between 1 and 4998: ");
+            System.out.println("Enter a port number between 1025 and 4998: ");
         }
         while (true) {
-            System.out.println("1 - DATETIME\n2 - UPTIME\n3 - MEMORY\n4 - NETSTAT\n5 - USERS\n6 - PROCESSES\n7 - EXIT");
+            System.out.println("\n1 - DATETIME\n2 - UPTIME\n3 - MEMORY\n4 - NETSTAT\n5 - USERS\n6 - PROCESSES\n7 - EXIT");
             System.out.print("Please enter the client request Number: ");
             int inputNumber = 0;
             do {
@@ -55,12 +51,10 @@ public class Client {
 
             Thread[] threads = new Thread[requestCount];
             ClientResult[] results = new ClientResult[requestCount];
-            long t0 = System.nanoTime();
-
             for (int i = 0; i < requestCount; i++) {
-                int id = i + 1;
-                Runnable r = new ClientRunnable(id, networkAddress, portNumber, clientRequest, results);
-                Thread t = new Thread(r, "client-" + id);
+                int requestNumber = i + 1;
+                Runnable r = new ClientRunnable(requestNumber, networkAddress, portNumber, clientRequest, results);
+                Thread t = new Thread(r, "client-" + requestNumber);
                 threads[i] = t;
                 t.start();
             }
@@ -73,68 +67,38 @@ public class Client {
                     e.printStackTrace();
                 }
             }
-            long t1 = System.nanoTime();
 
-            List<ClientResult> resultList = new ArrayList<>(requestCount);
-            for (ClientResult r : results) {
-                if (r != null) resultList.add(r);
-            }
-            resultList.sort(Comparator.comparingInt(r -> r.id));
-
-            System.out.println("\nPer-attempt Turn-around Times (ms): ");
-            System.out.println("ID, RTT(ms), Bytes, Error");
             long successCount = 0;
-            long totalMillis = 0;
-//            for (ClientResult r : resultList) {
-//                System.out.printf(Locale.US, "%d, %.3f, %d, %s\n", r.id, r.millis(), r.bytesReceived, r.error == null ? "" : r.error);
-//                if (r.error == null) {
-//                    successCount++;
-//                    totalMillis += Math.round(r.millis());
-//                }
-//            }
-            for  (ClientResult r : resultList) {
-                if (r.timestampLine != null) {
-                    System.out.println(r.timestampLine);
-                }
-                if (r.responseText != null && !r.responseText.isEmpty()) {
-                    System.out.println(r.responseText);
-                }
-                System.out.printf("Turn-around time for client request number %d: %dms%n", r.id, Math.round(r.millis()));
-                //System.out.printf(Locale.US, "ID, RTT(ms), Bytes, Error -> %d, %.3f, %d, %s%n",
-                //        r.id, r.millis(), r.bytesReceived, r.error == null ? "" : r.error);
-
-                if (r.error == null) {
+            long totalTime = 0;
+            for (ClientResult r : results) {
+                if (r != null && r.error == null) {
                     successCount++;
-                    totalMillis += Math.round(r.millis());
+                    totalTime += Math.round(r.timeTaken());
                 }
             }
 
-            double averageTime = totalMillis / successCount;
-            double wallClockMs = (t1 - t0) / 1_000_000.0;
+            double averageTime = totalTime / successCount;
 
-            System.out.printf(Locale.US, "\nTotal Turn-around Time (sum of per-request RTTs): %d ms\n", totalMillis);
-            System.out.printf(Locale.US, "Average Turn-around Time: %.3f ms\n", averageTime);
-            System.out.printf(Locale.US, "Wall-clock elapsed (submit -> all done): %.3f ms\n", wallClockMs);
-            System.out.printf("Successful requests: %d / %d\n", successCount, requestCount);
-            System.out.println("\nDone.");
+            System.out.printf(Locale.US, "\nTotal turn-around time for client requests: %dms\n", totalTime);
+            System.out.printf(Locale.US, "Average turn-around time for client requests: %.1fms\n", averageTime);
         }
     }
 
 
 
     private static class ClientRunnable implements Runnable {
-        private int id;
+        private int requestNumber;
         private String networkAddress;
         private int portNumber;
         private String clientRequest;
-        private final ClientResult[] sink;
+        private final ClientResult[] resultsArray;
 
-        ClientRunnable(int id, String networkAddress, int portNumber, String clientRequest, ClientResult[] sink){
-            this.id = id;
+        ClientRunnable(int requestNumber, String networkAddress, int portNumber, String clientRequest, ClientResult[] resultsArray) {
+            this.requestNumber = requestNumber;
             this.networkAddress = networkAddress;
             this.portNumber = portNumber;
             this.clientRequest = clientRequest;
-            this.sink = sink;
+            this.resultsArray = resultsArray;
         }
 
         public void run() {
@@ -143,53 +107,49 @@ public class Client {
             int bytesReceived = 0;
             String error = null;
 
-            try (Socket socket = new Socket(networkAddress, portNumber)){
+            try (Socket socket = new Socket(networkAddress, portNumber)) {
                 socket.setSoTimeout(60_000);
 
-                OutputStream os = socket.getOutputStream();
-                InputStream is = socket.getInputStream();
-                BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(os, StandardCharsets.UTF_8));
-                BufferedInputStream bis = new BufferedInputStream(is);
-                BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(os, StandardCharsets.UTF_8));
-                BufferedReader br = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
+                BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8));
+                BufferedReader br = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
 
                 startTime = System.nanoTime();
-                bw.write(clientRequest + "\n");
+                bw.write(clientRequest);
+                bw.write("\n");
                 bw.flush();
 
-                byte[] buffer = new byte[8192];
-                int n;
-                while ((n = bis.read(buffer)) != -1){
-                    bytesReceived += n;
-                }
-
                 StringBuilder body = new StringBuilder();
-                Strig line;
-                while ((line = br.readLine()) != null){
+                String line;
+                while ((line = br.readLine()) != null) {
                     if ("END".equals(line)) break;
-                    body.append(line).append('\n');
+                    body.append(line).append("\n");
                 }
-
                 endTime = System.nanoTime();
 
                 bytesReceived = body.toString().getBytes(StandardCharsets.UTF_8).length;
-                String displayStamp = ZonedDataTime.now().format(STAMP);
-                sinl[id - 1] = new ClientResult(id, startTime, endTime, bytesReceived, nuull, displayStamp, body.toString());
+                String displayStamp = ZonedDateTime.now().format(STAMP);
+                if (!"DATETIME".equals(clientRequest)) {
+                    System.out.println(displayStamp);
+                }
+                if (body.length() > 0) {
+                    System.out.print(body.toString());
+                }
+                System.out.printf("Turn-around time for client request number %d: %dms%n", requestNumber, Math.round((endTime - startTime) / 1_000_000.0));
+
+
+                resultsArray[requestNumber - 1] = new ClientResult(requestNumber, startTime, endTime, bytesReceived, null, displayStamp, body.toString());
                 return;
 
-            } catch (Exception e){
+            } catch (Exception e) {
                 error = e.getMessage();
-                if (startTime == 0L){
-                    startTime = System.nanoTime();
-                }
+                if (startTime == 0L) startTime = System.nanoTime();
                 endTime = System.nanoTime();
             }
-
-            sink[id - 1] = new ClientResult(id, startTime, endTime, bytesReceived, error);
+            resultsArray[requestNumber - 1] = new ClientResult(requestNumber, startTime, endTime, bytesReceived, error, null, null);
         }
     }
     private static class ClientResult{
-        int id;
+        int requestNumber;
         long startTime;
         long endTime;
         int bytesReceived;
@@ -197,8 +157,8 @@ public class Client {
         final String timestampLine;
         final String responseText;
 
-        ClientResult(int id, long startTime, long endTime, int bytesReceived, String error, String timestampLine, String responseText){
-            this.id = id;
+        ClientResult(int requestNumber, long startTime, long endTime, int bytesReceived, String error, String timestampLine, String responseText){
+            this.requestNumber = requestNumber;
             this.startTime = startTime;
             this.endTime = endTime;
             this.bytesReceived = bytesReceived;
@@ -207,7 +167,7 @@ public class Client {
             this.responseText = responseText;
         }
 
-        double millis() { return (endTime - startTime) / 1_000_000.0; }
+        double timeTaken() { return (endTime - startTime) / 1_000_000.0; }
     }
 
 }
