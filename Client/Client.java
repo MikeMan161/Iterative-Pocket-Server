@@ -2,6 +2,9 @@ import java.io.*;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.nio.charset.StandardCharsets;
 
 //TIP To <b>Run</b> code, press <shortcut actionId="Run"/> or
 // click the <icon src="AllIcons.Actions.Execute"/> icon in the gutter.
@@ -9,6 +12,7 @@ public class Client {
     private static final Set<Integer> REQUEST_NUMBER = Set.of(1, 5, 10, 15, 20, 25);
     private static final String[] AVAILABLE_REQUESTS = {"DATETIME","UPTIME", "MEMORY", "NETSTAT", "USERS", "PROCESSES", "EXIT"};
     private static final Set<Integer> INPUT_NUMBER = Set.of(1, 2, 3, 4, 5, 6, 7, 8);
+    private static final DateTimeFormatter = DateTimeFormatter.ofPattern("EEE MMM d hh:mm:ss a z yyyy", Locale.US);
 
     public static void main(String[] args) {
         Scanner sc = new Scanner(System.in);
@@ -81,8 +85,24 @@ public class Client {
             System.out.println("ID, RTT(ms), Bytes, Error");
             long successCount = 0;
             long totalMillis = 0;
-            for (ClientResult r : resultList) {
-                System.out.printf(Locale.US, "%d, %.3f, %d, %s\n", r.id, r.millis(), r.bytesReceived, r.error == null ? "" : r.error);
+//            for (ClientResult r : resultList) {
+//                System.out.printf(Locale.US, "%d, %.3f, %d, %s\n", r.id, r.millis(), r.bytesReceived, r.error == null ? "" : r.error);
+//                if (r.error == null) {
+//                    successCount++;
+//                    totalMillis += Math.round(r.millis());
+//                }
+//            }
+            for  (ClientResult r : resultList) {
+                if (r.timestampLine != null) {
+                    System.out.println(r.timestampLine);
+                }
+                if (r.responseText != null && !r.responseText.isEmpty()) {
+                    System.out.println(r.responseText);
+                }
+                System.out.printf("Turn-around time for client request number %d: %dms%n", r.id, Math.round(r.millis()));
+                //System.out.printf(Locale.US, "ID, RTT(ms), Bytes, Error -> %d, %.3f, %d, %s%n",
+                //        r.id, r.millis(), r.bytesReceived, r.error == null ? "" : r.error);
+
                 if (r.error == null) {
                     successCount++;
                     totalMillis += Math.round(r.millis());
@@ -130,6 +150,8 @@ public class Client {
                 InputStream is = socket.getInputStream();
                 BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(os, StandardCharsets.UTF_8));
                 BufferedInputStream bis = new BufferedInputStream(is);
+                BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(os, StandardCharsets.UTF_8));
+                BufferedReader br = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
 
                 startTime = System.nanoTime();
                 bw.write(clientRequest + "\n");
@@ -140,7 +162,21 @@ public class Client {
                 while ((n = bis.read(buffer)) != -1){
                     bytesReceived += n;
                 }
+
+                StringBuilder body = new StringBuilder();
+                Strig line;
+                while ((line = br.readLine()) != null){
+                    if ("END".equals(line)) break;
+                    body.append(line).append('\n');
+                }
+
                 endTime = System.nanoTime();
+
+                bytesReceived = body.toString().getBytes(StandardCharsets.UTF_8).length;
+                String displayStamp = ZonedDataTime.now().format(STAMP);
+                sinl[id - 1] = new ClientResult(id, startTime, endTime, bytesReceived, nuull, displayStamp, body.toString());
+                return;
+
             } catch (Exception e){
                 error = e.getMessage();
                 if (startTime == 0L){
@@ -158,13 +194,17 @@ public class Client {
         long endTime;
         int bytesReceived;
         String error;
+        final String timestampLine;
+        final String responseText;
 
-        ClientResult(int id, long startTime, long endTime, int bytesReceived, String error){
+        ClientResult(int id, long startTime, long endTime, int bytesReceived, String error, String timestampLine, String responseText){
             this.id = id;
             this.startTime = startTime;
             this.endTime = endTime;
             this.bytesReceived = bytesReceived;
             this.error = error;
+            this.timestampLine = timestampLine;
+            this.responseText = responseText;
         }
 
         double millis() { return (endTime - startTime) / 1_000_000.0; }
