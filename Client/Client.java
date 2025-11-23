@@ -7,7 +7,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.concurrent.CountDownLatch;
 
 public class Client {
-    private static final Set<Integer> REQUEST_NUMBER = Set.of(1, 5, 10, 15, 20, 25);
+    private static final Set<Integer> REQUEST_NUMBER = Set.of(1, 5, 10, 15, 20, 25, 100);
     private static final String[] AVAILABLE_REQUESTS = {"DATETIME","UPTIME", "MEMORY", "NETSTAT", "USERS", "PROCESSES", "EXIT"};
     private static final Set<Integer> INPUT_NUMBER = Set.of(1, 2, 3, 4, 5, 6, 7);
     private static final DateTimeFormatter STAMP = DateTimeFormatter.ofPattern("EEE MMM d hh:mm:ss a z yyyy", Locale.US);
@@ -42,10 +42,10 @@ public class Client {
 
             String clientRequest = AVAILABLE_REQUESTS[inputNumber - 1];
 
-            System.out.println("Please enter the number of requests that you want to send (1, 5, 10, 15, 20, 25)");
+            System.out.println("Please enter the number of requests that you want to send (1, 5, 10, 15, 20, 25, 100)");
             int requestCount = sc.nextInt();
             while (!REQUEST_NUMBER.contains(requestCount)) {
-                System.out.println("Please enter the number of requests that you want to send (1, 5, 10, 15, 20, 25)");
+                System.out.println("Please enter the number of requests that you want to send (1, 5, 10, 15, 20, 25, 100)");
                 requestCount = sc.nextInt();
             }
 
@@ -77,10 +77,14 @@ public class Client {
                 }
             }
 
-            double averageTime = totalTime / successCount;
+            if (successCount == 0) {
+                System.out.println("There are successeful client requests.");
+            } else {
+                double averageTime = (double) totalTime / successCount;
 
-            System.out.printf(Locale.US, "\nTotal turn-around time for client requests: %dms\n", totalTime);
-            System.out.printf(Locale.US, "Average turn-around time for client requests: %.1fms\n", averageTime);
+                System.out.printf(Locale.US, "\nTotal turn-around time for client requests: %dms\n", totalTime);
+                System.out.printf(Locale.US, "Average turn-around time for client requests: %.1fms\n", averageTime);
+            }
         }
     }
 
