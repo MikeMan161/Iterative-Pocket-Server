@@ -107,4 +107,3 @@ public class ConcurrentServer {
 
     private static void log(String s){ System.out.printf("[%s] %s%n", java.time.LocalDateTime.now(), s); }
 }
-EOF
